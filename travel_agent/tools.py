@@ -48,3 +48,62 @@ if __name__ == "__main__":
     # 注意：真实调用时，参数是一个字典
     result = get_weather.invoke({"city_code": "110000"})
     print(result)
+
+# --- 新增工具：查城市代码 ---
+@tool("get_city_code")
+def get_city_code(city_name: str) -> str:
+    """
+    输入城市中文名称（如'北京'、'湘潭'），返回该城市的行政代码。
+    """
+    # 这里调用高德的【行政区域查询】接口
+    url = "https://restapi.amap.com/v3/config/district"
+    params = {
+        "key": AMAP_KEY,
+        "keywords": city_name,
+        "subdistrict": 0  # 0表示不显示下级行政区，只要本级的
+    }
+    try:
+        response = requests.get(url, params=params)
+        data = response.json()
+        
+        # 如果查到了数据
+        if data["status"] == "1" and len(data["districts"]) > 0:
+            # 拿到第一个匹配结果的 adcode
+            code = data["districts"][0]["adcode"]
+            print(f"📜 [古老卷轴] 找到了！{city_name} 的真名代码是：{code}")
+            return code
+        else:
+            return f"未找到 {city_name} 的代码，请检查城市名称是否正确。"
+    except Exception as e:
+        return f"查询出错：{str(e)}"
+    
+# --- 新增工具：搜周边景点 ---
+@tool("search_poi")
+def search_poi(city_name: str, keyword: str = "景点") -> str:
+    """
+    输入城市名（如'北京'）和关键词（如'博物馆'、'公园'），搜索相关地点。
+    如果不填关键词，默认搜索'景点'。
+    """
+    url = "https://restapi.amap.com/v3/place/text"
+    params = {
+        "key": AMAP_KEY,
+        "keywords": keyword,
+        "city": city_name,
+        "offset": 5,   # 只返回前5个结果，省点流量
+        "page": 1,
+        "extensions": "all"
+    }
+    try:
+        print(f"🪄 [魔法咏唱中] 正在搜索 {city_name} 的 {keyword}...")
+        response = requests.get(url, params=params)
+        data = response.json()
+        
+        if data["status"] == "1" and int(data["count"]) > 0:
+            pois = []
+            for poi in data["pois"]:
+                pois.append(f"- {poi['name']} ({poi['type']})")
+            return f"在 {city_name} 找到了这些 {keyword}：\n" + "\n".join(pois)
+        else:
+            return f"呜呜...在 {city_name} 没找到关于 {keyword} 的地方。"
+    except Exception as e:
+        return f"魔法失效了：{str(e)}"
